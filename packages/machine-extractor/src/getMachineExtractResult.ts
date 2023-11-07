@@ -1,6 +1,6 @@
 import * as t from '@babel/types';
-import { MachineCallExpression } from './machineCallExpression';
 import { MachineExtractResult } from './MachineExtractResult';
+import { MachineMethodExpression } from './machineMethodExpression';
 import { hashedId } from './utils';
 
 export function getMachineExtractResult({
@@ -10,9 +10,9 @@ export function getMachineExtractResult({
 }: {
   file: t.File;
   fileContent: string;
-  node: t.CallExpression;
+  node: t.ClassMethod | t.CallExpression;
 }) {
-  const machineCallResult = MachineCallExpression.parse(node, {
+  const machineCallResult = MachineMethodExpression.parse(node, {
     file,
     getNodeHash: (node: t.Node): string => {
       const fileText = fileContent.substring(node.start!, node.end!);

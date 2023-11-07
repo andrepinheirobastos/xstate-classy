@@ -1,4 +1,4 @@
-import { groupByUniqueName, MachineExtractResult } from '..';
+import { groupByUniqueName } from '..';
 import { extractMachinesFromFile } from '../extractMachinesFromFile';
 
 describe('MachineParseResult', () => {

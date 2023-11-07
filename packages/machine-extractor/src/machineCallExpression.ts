@@ -13,6 +13,8 @@ export const ALLOWED_CALL_EXPRESSION_NAMES = [
   'createMachine',
   'Machine',
   'createTestMachine',
+  'getMachineConfig',
+  'getMachine',
 ];
 
 export const MachineCallExpression = createParser({

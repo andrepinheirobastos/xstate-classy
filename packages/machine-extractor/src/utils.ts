@@ -412,7 +412,11 @@ export const namedFunctionCall = <Argument1Result, Argument2Result>(
 export const isFunctionOrArrowFunctionExpression = (
   node: any,
 ): node is t.ArrowFunctionExpression | t.FunctionExpression => {
-  return t.isArrowFunctionExpression(node) || t.isFunctionExpression(node);
+  return (
+    t.isMemberExpression(node) ||
+    t.isArrowFunctionExpression(node) ||
+    t.isFunctionExpression(node)
+  );
 };
 
 export function hashedId(str: string): string {

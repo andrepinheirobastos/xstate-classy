@@ -4,12 +4,13 @@ import * as recast from 'recast';
 import { Action, Condition, MachineOptions } from 'xstate';
 import { choose } from 'xstate/lib/actions';
 import { DeclarationType } from '.';
+import { RecordOfArrays } from './RecordOfArrays';
 import { ActionNode, ParsedChooseCondition } from './actions';
 import { getMachineNodesFromFile } from './getMachineNodesFromFile';
 import { TMachineCallExpression } from './machineCallExpression';
-import { RecordOfArrays } from './RecordOfArrays';
+import { TMachineMethodExpression } from './machineMethodExpression';
 import { StateNodeReturn } from './stateNode';
-import { toMachineConfig, ToMachineConfigOptions } from './toMachineConfig';
+import { ToMachineConfigOptions, toMachineConfig } from './toMachineConfig';
 import { TransitionConfigNode } from './transitions';
 import { Comment } from './types';
 
@@ -202,7 +203,7 @@ const getLayoutString = (commentString: string): string | undefined => {
  * Gives some helpers to the user of the lib
  */
 export class MachineExtractResult {
-  machineCallResult: TMachineCallExpression;
+  machineCallResult: TMachineCallExpression | TMachineMethodExpression;
   private stateNodes: MachineParseResultStateNode[];
   private _fileContent: string;
   private _fileAst: t.File;
@@ -211,7 +212,7 @@ export class MachineExtractResult {
   constructor(props: {
     fileAst: t.File;
     fileContent: string;
-    machineCallResult: TMachineCallExpression;
+    machineCallResult: TMachineCallExpression | TMachineMethodExpression;
   }) {
     this.machineCallResult = props.machineCallResult;
     this._fileAst = props.fileAst;
@@ -263,8 +264,7 @@ export class MachineExtractResult {
       }
 
       return (
-        comment.loc!.end.line ===
-        this.machineCallResult.callee.loc!.start.line - 1
+        comment.loc!.end.line === this.machineCallResult.callee.loc!.start.line - 1
       );
     });
 
@@ -369,8 +369,7 @@ export class MachineExtractResult {
       }
 
       return (
-        comment.loc!.end.line ===
-        this.machineCallResult.callee.loc!.start.line - 1
+        comment.loc!.end.line === this.machineCallResult.callee.loc!.start.line - 1
       );
     });
 
@@ -1599,13 +1598,22 @@ export class MachineExtractResult {
         machineNode.loc!.start.column === existingMachineNodeLoc.start.column,
     )!;
 
+    let start;
+    let end;
+    if ((machineNode as t.CallExpression).arguments.length > 0) {
+      start = (machineNode as t.CallExpression).arguments[0].start!;
+      end = (machineNode as t.CallExpression).arguments[0].end!;
+    }
+
+    if ((machineNode as t.ClassMethod).kind === 'method') {
+      start = (machineNode as t.ClassMethod).body.body[0].start!;
+      end = (machineNode as t.ClassMethod).body.body[0].end!;
+    }
+
     const configEdit: TextEdit = {
       type: 'replace',
       range: oldRange,
-      newText: reprinted.slice(
-        machineNode.arguments[0].start!,
-        machineNode.arguments[0].end!,
-      ),
+      newText: reprinted.slice(start, end),
     };
 
     return {
@@ -1694,14 +1702,23 @@ export class MachineExtractResult {
           this.machineCallResult.node.loc!.start.column,
     )!;
 
+    let start;
+    let end;
+    if ((machineNode as t.CallExpression).arguments.length > 0) {
+      start = (machineNode as t.CallExpression).arguments[0].start!;
+      end = (machineNode as t.CallExpression).arguments[0].end!;
+    }
+
+    if ((machineNode as t.ClassMethod).kind === 'method') {
+      start = (machineNode as t.ClassMethod).body.body[0].start!;
+      end = (machineNode as t.ClassMethod).body.body[0].end!;
+    }
+
     return {
       configEdit: {
         type: 'replace' as const,
         range: oldRange,
-        newText: reprinted.slice(
-          machineNode.arguments[0].start!,
-          machineNode.arguments[0].end!,
-        ),
+        newText: reprinted.slice(start, end),
       },
     };
   }
@@ -1896,7 +1913,7 @@ function getPropByPath(ast: RecastObjectExpression, path: (string | number)[]) {
     );
   }
   const pathCopy = [...path];
-  let segment: typeof path[number] | undefined;
+  let segment: (typeof path)[number] | undefined;
   let current: RecastNode | undefined | null = ast;
   while ((segment = pathCopy.shift()) !== undefined) {
     if (typeof segment === 'string') {
@@ -1936,7 +1953,7 @@ function insertAtTransitionPath(
     );
   }
   const pathCopy = path.slice(0, -1);
-  let segment: typeof path[number] | undefined;
+  let segment: (typeof path)[number] | undefined;
   let current: RecastNode = ast;
 
   while ((segment = pathCopy.shift()) !== undefined) {
@@ -1991,7 +2008,7 @@ function getTransitionObject(
   path: TransitionPath,
 ) {
   const pathCopy = [...path];
-  let segment: typeof path[number] | undefined;
+  let segment: (typeof path)[number] | undefined;
   let current: RecastNode = obj;
 
   while ((segment = pathCopy.shift()) !== undefined) {
@@ -2335,6 +2352,8 @@ const ALLOWED_CALL_EXPRESSION_NAMES = new Set([
   'createMachine',
   'Machine',
   'createTestMachine',
+  'getMachineConfig',
+  'getMachine',
 ]);
 
 function findRecastDefinitionNode(ast: RecastFile, definitionNode: t.Node) {
@@ -2673,7 +2692,7 @@ function getIndexForTransitionPathAppendant(
   // this function is supposed to ignore the last element (the index)
   // we only want check max existing index of this path in the given state object
   const pathCopy = path.slice(0, -1);
-  let segment: typeof path[number] | undefined;
+  let segment: (typeof path)[number] | undefined;
   let current: RecastNode = ast;
 
   while ((segment = pathCopy.shift()) !== undefined) {

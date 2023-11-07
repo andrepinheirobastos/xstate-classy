@@ -7,6 +7,7 @@ import {
 import { MaybeArrayOfActions } from './actions';
 import { CondNode } from './conds';
 import { TMachineCallExpression } from './machineCallExpression';
+import { TMachineMethodExpression } from './machineMethodExpression';
 import { StateNodeReturn } from './stateNode';
 import { MaybeTransitionArray } from './transitions';
 import { GetParserResult } from './utils';
@@ -151,7 +152,7 @@ const parseStateNode = (
           src = invoke.src.inlineDeclarationId;
       }
 
-      const toPush: typeof invokes[number] = {
+      const toPush: (typeof invokes)[number] = {
         src: src || (() => () => {}),
       };
 
@@ -189,7 +190,7 @@ const parseStateNode = (
 };
 
 export const toMachineConfig = (
-  result: TMachineCallExpression,
+  result: TMachineCallExpression | TMachineMethodExpression,
   opts?: ToMachineConfigOptions,
 ): MachineConfig<any, any, any> | undefined => {
   if (!result?.definition) return undefined;
@@ -213,9 +214,11 @@ export const getActionConfig = (
         });
         return;
       case opts?.hashInlineImplementations:
-        actions.push({
-          type: action.inlineDeclarationId,
-        });
+        const actionName = opts!.fileContent.slice(
+          action.node.start!,
+          action.node.end!,
+        );
+        actions.push(actionName);
         return;
       case opts?.stringifyInlineImplementations:
         actions.push(
@@ -257,7 +260,10 @@ const getCondition = (
     case opts?.anonymizeInlineImplementations:
       return 'anonymous';
     case opts?.hashInlineImplementations:
-      return condNode.inlineDeclarationId;
+      condNode.declarationType = 'named';
+      opts!.hashInlineImplementations = false;
+      condNode.name = 'condNode.inlineDeclarationId';
+      return 'condNode.inlineDeclarationId';
   }
 };
 
@@ -276,6 +282,15 @@ export const getTransitions = (
         toPush.target = transition?.target.map((target) => target.value);
       }
     }
+
+    if (!!transition?.cond && transition.cond.declarationType !== 'named') {
+      transition.cond.declarationType = 'named';
+      transition.cond.name = opts!.fileContent.slice(
+        transition.cond.node.start!,
+        transition.cond.node.end!,
+      );
+    }
+
     const cond = getCondition(transition?.cond, opts);
     if (cond) {
       toPush.cond = cond;
